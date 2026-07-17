@@ -1,0 +1,51 @@
+{
+  "category_file": "11_scope_overlap",
+  "cases": [
+    {
+      "id": "TC-1101",
+      "category": "scope_overlap",
+      "query": "Store this generated report file in our document system so people can search for it later.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "doc.upload_file",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "storage.upload_to_s3"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "'document system / searchable' = DMS, not raw S3 object storage."
+    },
+    {
+      "id": "TC-1102",
+      "category": "scope_overlap",
+      "query": "Dump this 2GB raw log blob into the 'ops-archive' bucket under key logs/2025-07.gz.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "storage.upload_to_s3",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "doc.upload_file"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Raw blob + bucket/key = object storage, not the DMS."
+    }
+  ]
+}

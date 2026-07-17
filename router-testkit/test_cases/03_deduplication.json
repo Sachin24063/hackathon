@@ -1,0 +1,85 @@
+{
+  "category_file": "03_deduplication",
+  "cases": [
+    {
+      "id": "TC-301",
+      "category": "deduplication",
+      "query": "Get the profile for user id U-1002.",
+      "context": {},
+      "expected": {
+        "tools_required": [],
+        "order": null,
+        "forbidden": [
+          "user.get_user_by_email"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [
+          [
+            "user.get_user",
+            "user.fetch_profile",
+            "user.lookup_member"
+          ]
+        ],
+        "widen_after_fail": null
+      },
+      "rationale": "Three near-duplicate lookups. Router must inject exactly ONE (highest confidence \u2014 get_user is canonical), NOT all three. by_email is wrong signal (we have an id)."
+    },
+    {
+      "id": "TC-302",
+      "category": "deduplication",
+      "query": "Make a bar chart of monthly signups for 2025.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "bi.get_metric_timeseries",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "bi.generate_chart",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "bi.get_metric_timeseries",
+          "bi.generate_chart"
+        ],
+        "forbidden": [
+          "bi.create_visualization"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "'chart'/downloadable image => generate_chart, not the create_visualization dashboard-tile near-dup."
+    },
+    {
+      "id": "TC-303",
+      "category": "deduplication",
+      "query": "Export the sales pipeline to a spreadsheet.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "crm.get_sales_pipeline",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [],
+        "should_clarify": false,
+        "allow_any_of": [
+          [
+            "data.export_to_csv",
+            "data.export_to_excel"
+          ]
+        ],
+        "widen_after_fail": null
+      },
+      "rationale": "'spreadsheet' is ambiguous between csv/excel \u2014 accepting either single choice is correct; selecting BOTH exporters is a dedup failure."
+    }
+  ]
+}

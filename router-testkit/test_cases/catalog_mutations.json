@@ -1,0 +1,108 @@
+{
+  "description": "Catalog-churn scenarios that map to the evaluation-criteria questions about what happens when tools are added, removed, replaced, or version-upgraded. Each scenario applies a delta to the base catalog, then asserts a routing invariant on a probe query. A resilient router re-indexes from the delta WITHOUT code changes and keeps routing correct.",
+
+  "scenarios": [
+    {
+      "id": "MUT-01-add",
+      "type": "add_tool",
+      "delta": {
+        "add": [
+          {
+            "id": "fin.get_cashflow_statement",
+            "name": "get_cashflow_statement",
+            "cluster": "finance",
+            "description": "Generate a statement of cash flows (operating, investing, financing) for a period.",
+            "version": "1.0.0",
+            "parameters": [{"name": "period", "type": "string", "required": true}],
+            "returns": {"type": "object", "fields": ["operating", "investing", "financing"]}
+          }
+        ]
+      },
+      "probe_query": "Show me the cash flow statement for Q1.",
+      "expected_after": {"tools_required": ["fin.get_cashflow_statement"]},
+      "invariant": "Newly added tool becomes routable immediately; must NOT be mis-routed to get_pnl_statement.",
+      "regression_probe": {
+        "query": "What was our total revenue last quarter?",
+        "expected_tools": ["fin.get_revenue_report"],
+        "note": "Adding a tool must not change routing for unrelated existing queries."
+      }
+    },
+    {
+      "id": "MUT-02-remove",
+      "type": "remove_tool",
+      "delta": {"remove": ["bi.generate_chart"]},
+      "probe_query": "Pull last quarter's revenue and email the chart to finance@corp.com.",
+      "expected_after": {
+        "behavior": "graceful_degradation",
+        "acceptable_outcomes": [
+          "route bi.create_visualization as the closest remaining capability and note the substitution",
+          "flag that no chart-image tool is available and request guidance"
+        ]
+      },
+      "invariant": "Removing a tool that a chain depends on must NOT crash the router; it should fall back or surface the gap."
+    },
+    {
+      "id": "MUT-03-replace",
+      "type": "replace_tool",
+      "delta": {
+        "remove": ["comm.send_slack_message"],
+        "add": [
+          {
+            "id": "comm.post_slack_message",
+            "name": "post_slack_message",
+            "cluster": "communication",
+            "description": "Post a message to a Slack channel or thread. Replacement for the retired send_slack_message tool.",
+            "version": "2.0.0",
+            "replaces": "comm.send_slack_message",
+            "parameters": [
+              {"name": "channel", "type": "string", "required": true},
+              {"name": "text", "type": "string", "required": true},
+              {"name": "thread_ts", "type": "string", "required": false}
+            ],
+            "returns": {"type": "object", "fields": ["ts", "status"]}
+          }
+        ]
+      },
+      "probe_query": "Post 'ship it' to the #eng Slack channel.",
+      "expected_after": {"tools_required": ["comm.post_slack_message"]},
+      "invariant": "A rename/replace (same capability, new id) must route to the new tool with no query change. Tests that routing keys off capability semantics, not hardcoded ids."
+    },
+    {
+      "id": "MUT-04-upgrade-both-alive",
+      "type": "version_upgrade_backward_compatible",
+      "delta": {
+        "note": "No delta — both fin.create_invoice (deprecated v1) and fin.create_invoice_v2 (current) already coexist in the base catalog. This scenario tests the disambiguation policy directly."
+      },
+      "probes": [
+        {
+          "query": "Create an invoice for CUST-5 for $900.",
+          "expected_tools": ["fin.create_invoice_v2"],
+          "policy": "PREFER_CURRENT — with no explicit version signal, route the non-deprecated tool."
+        },
+        {
+          "query": "Create a legacy v1-format invoice for the audit for CUST-5 at $900.",
+          "expected_tools": ["fin.create_invoice"],
+          "policy": "HONOR_EXPLICIT_VERSION — an explicit v1/legacy signal overrides PREFER_CURRENT."
+        }
+      ],
+      "invariant": "When two versions of the same capability are both alive, the router uses deprecation metadata + explicit version signals to pick one — never injects both simultaneously.",
+      "scoring_hint": "Injecting BOTH invoice tools for an unversioned request is the primary failure mode to penalize."
+    },
+    {
+      "id": "MUT-05-mass-add-scale",
+      "type": "scale_stress",
+      "delta": {
+        "add_synthetic": {
+          "count": 40,
+          "pattern": "Generate 40 additional plausible enterprise tools spread across existing clusters (the harness auto-generates these) to push the catalog to ~104 tools.",
+          "cluster_distribution": "even"
+        }
+      },
+      "probe_query": "Pull last quarter's revenue and email the chart to finance@corp.com.",
+      "expected_after": {
+        "tools_required": ["fin.get_revenue_report", "bi.generate_chart", "comm.send_email_with_attachment"]
+      },
+      "invariant": "Routing accuracy AND token-savings ratio should hold (or improve) as the catalog grows. Report selection accuracy at 64 vs ~104 tools; a router whose accuracy collapses under scale fails this scenario."
+    }
+  ]
+}

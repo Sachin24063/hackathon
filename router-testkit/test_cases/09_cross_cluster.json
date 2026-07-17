@@ -1,0 +1,103 @@
+{
+  "category_file": "09_cross_cluster",
+  "cases": [
+    {
+      "id": "TC-901",
+      "category": "cross_cluster",
+      "query": "Look up customer CUST-7's account owner, then post a note in the #sales-wins Slack channel congratulating them.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "crm.get_customer",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "comm.send_slack_message",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "crm.get_customer",
+          "comm.send_slack_message"
+        ],
+        "forbidden": [
+          "comm.send_email",
+          "crm.log_call"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "CRM read + COMM write across two clusters; Slack specifically, not email."
+    },
+    {
+      "id": "TC-902",
+      "category": "cross_cluster",
+      "query": "Deploy web-frontend v3.2.0 to staging and open a Teams message in #deploys with the result.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "it.deploy_application",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "comm.post_teams_message",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "it.deploy_application",
+          "comm.post_teams_message"
+        ],
+        "forbidden": [
+          "comm.send_slack_message",
+          "it.open_incident"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "IT + COMM; Teams not Slack. Must not treat a normal deploy as an incident."
+    },
+    {
+      "id": "TC-903",
+      "category": "cross_cluster",
+      "query": "Pull the P&L for Q2, export it as a PDF dashboard snapshot, and share that document with the CFO (user U-88).",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "fin.get_pnl_statement",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "bi.export_dashboard",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "doc.share_document",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "doc.delete_file",
+          "storage.upload_to_s3"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "FIN -> BI -> DOC three-cluster chain; share (not upload/delete)."
+    }
+  ]
+}

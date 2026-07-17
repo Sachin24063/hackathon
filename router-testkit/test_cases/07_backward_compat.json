@@ -1,0 +1,71 @@
+{
+  "category_file": "07_backward_compat",
+  "cases": [
+    {
+      "id": "TC-701",
+      "category": "backward_compat",
+      "query": "Create an invoice for customer CUST-22 for $12,000, net-30.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "fin.create_invoice_v2",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "fin.create_invoice"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "No version specified => pick the CURRENT (non-deprecated) tool."
+    },
+    {
+      "id": "TC-702",
+      "category": "backward_compat",
+      "query": "For the 2024 audit reconciliation we still need invoices in the legacy v1 flat format \u2014 create one for CUST-3 at $500 using the old format.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "fin.create_invoice",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "fin.create_invoice_v2"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "User EXPLICITLY requests the legacy/v1 behavior \u2014 the deprecated tool is correct here. Router must honor an explicit version signal over the 'prefer current' default."
+    },
+    {
+      "id": "TC-703",
+      "category": "backward_compat",
+      "query": "Generate this month's invoices the same way we always have.",
+      "context": {},
+      "expected": {
+        "tools_required": [],
+        "order": null,
+        "forbidden": [],
+        "should_clarify": true,
+        "allow_any_of": [
+          [
+            "fin.create_invoice_v2",
+            "fin.create_invoice"
+          ]
+        ],
+        "widen_after_fail": null
+      },
+      "rationale": "'the same way we always have' is an ambiguous version signal. Acceptable outcomes: default to current v2 with a note, OR clarify. Blindly using the deprecated tool without justification scores lower."
+    }
+  ]
+}

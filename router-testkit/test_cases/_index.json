@@ -1,0 +1,50 @@
+{
+  "suite_version": "1.0.0",
+  "categories": [
+    {
+      "file": "01_single_tool.json",
+      "count": 3
+    },
+    {
+      "file": "02_multi_tool_ordered.json",
+      "count": 4
+    },
+    {
+      "file": "03_deduplication.json",
+      "count": 3
+    },
+    {
+      "file": "04_repeat_count.json",
+      "count": 2
+    },
+    {
+      "file": "05_clarification.json",
+      "count": 2
+    },
+    {
+      "file": "06_fallback_widening.json",
+      "count": 3
+    },
+    {
+      "file": "07_backward_compat.json",
+      "count": 3
+    },
+    {
+      "file": "08_negative_out_of_scope.json",
+      "count": 2
+    },
+    {
+      "file": "09_cross_cluster.json",
+      "count": 3
+    },
+    {
+      "file": "10_positional_bias.json",
+      "count": 2
+    },
+    {
+      "file": "11_scope_overlap.json",
+      "count": 2
+    }
+  ],
+  "total_cases": 29
+}

@@ -1,0 +1,146 @@
+{
+  "category_file": "02_multi_tool_ordered",
+  "cases": [
+    {
+      "id": "TC-201",
+      "category": "multi_tool_ordered",
+      "query": "Pull last quarter's revenue and email the chart to finance@corp.com.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "fin.get_revenue_report",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "bi.generate_chart",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "comm.send_email_with_attachment",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "fin.get_revenue_report",
+          "bi.generate_chart",
+          "comm.send_email_with_attachment"
+        ],
+        "forbidden": [
+          "fin.fetch_quarterly_earnings",
+          "comm.send_email",
+          "bi.create_visualization",
+          "data.email_report",
+          "mkt.send_campaign"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Canonical cross-cluster chain. Ordering is causal (data->chart->send). Traps: send_email can't attach; create_visualization makes a tile not a file; email_report/send_campaign are naming decoys."
+    },
+    {
+      "id": "TC-202",
+      "category": "multi_tool_ordered",
+      "query": "Run a SQL query for top 10 customers by ARR, export it to Excel, and upload the file to the document system.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "bi.run_sql_query",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "data.export_to_excel",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "doc.upload_file",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "bi.run_sql_query",
+          "data.export_to_excel",
+          "doc.upload_file"
+        ],
+        "forbidden": [
+          "data.export_to_csv",
+          "storage.upload_to_s3"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Excel specifically requested (not CSV); DMS upload requested (not raw S3)."
+    },
+    {
+      "id": "TC-203",
+      "category": "multi_tool_ordered",
+      "query": "Create the Q4 invoice for customer ACME (id CUST-9), then send it for e-signature to their CFO ap@acme.com.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "fin.create_invoice_v2",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "legal.request_signature",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "fin.create_invoice_v2",
+          "legal.request_signature"
+        ],
+        "forbidden": [
+          "fin.create_invoice"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "New invoice => current v2, not deprecated v1; then signature."
+    },
+    {
+      "id": "TC-204",
+      "category": "multi_tool_ordered",
+      "query": "Look up the employee record for E-4471, then file a $220 expense reimbursement for them.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "hr.lookup_employee",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "hr.submit_expense_reimbursement",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "hr.lookup_employee",
+          "hr.submit_expense_reimbursement"
+        ],
+        "forbidden": [
+          "hr.get_employee_record"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Only an id resolution + reimbursement is needed; no PII record required, so directory lookup suffices and get_employee_record (SSN-scoped) is over-privileged."
+    }
+  ]
+}

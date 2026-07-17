@@ -1,0 +1,54 @@
+{
+  "category_file": "04_repeat_count",
+  "cases": [
+    {
+      "id": "TC-401",
+      "category": "repeat_count",
+      "query": "Send the on-call handoff note to Dana, Omar, and Lin \u2014 separate individual emails, not a group thread.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "comm.send_email",
+            "min_calls": 3,
+            "max_calls": 3
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "comm.send_email_with_attachment",
+          "mkt.send_campaign"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Same tool invoked exactly 3x (one per recipient). Must NOT collapse to a single call or use the campaign blaster."
+    },
+    {
+      "id": "TC-402",
+      "category": "repeat_count",
+      "query": "Restart the auth, billing, and gateway services in staging.",
+      "context": {
+        "environment": "staging"
+      },
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "it.restart_service",
+            "min_calls": 3,
+            "max_calls": 3
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "it.deploy_application"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "restart_service called 3x, one per service."
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "category_file": "06_fallback_widening",
+  "cases": [
+    {
+      "id": "TC-601",
+      "category": "fallback_widening",
+      "query": "I need the mailing address and SSN on file for user U-1002 for a tax form.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "hr.get_employee_record",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": {
+          "likely_initial_pick": "user.get_user",
+          "reason_insufficient": "identity profile has no address/SSN fields",
+          "widen_to_cluster": "hr",
+          "correct_after_widen": "hr.get_employee_record"
+        }
+      },
+      "rationale": "The identity cluster tool a naive router picks first cannot return PII; system must detect the missing fields and widen to HR."
+    },
+    {
+      "id": "TC-602",
+      "category": "fallback_widening",
+      "query": "Attach the latest signed contract PDF to an email to legal@corp.com.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "legal.get_contract",
+            "min_calls": 1,
+            "max_calls": 1
+          },
+          {
+            "tool_id": "comm.send_email_with_attachment",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": [
+          "legal.get_contract",
+          "comm.send_email_with_attachment"
+        ],
+        "forbidden": [],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": {
+          "likely_initial_pick": "comm.send_email",
+          "reason_insufficient": "send_email cannot carry an attachment",
+          "widen_to_cluster": "communication",
+          "correct_after_widen": "comm.send_email_with_attachment"
+        }
+      },
+      "rationale": "If the router first routes plain send_email, the attach requirement fails; widening within the comm cluster surfaces the attachment-capable variant."
+    },
+    {
+      "id": "TC-603",
+      "category": "fallback_widening",
+      "query": "The checkout service is throwing 500s in prod for customers right now \u2014 handle it.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "it.open_incident",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": {
+          "likely_initial_pick": "it.create_ticket",
+          "reason_insufficient": "service-desk ticket does not page on-call for an outage",
+          "widen_to_cluster": "it_devops",
+          "correct_after_widen": "it.open_incident"
+        }
+      },
+      "rationale": "'right now / customers / 500s' = production incident, not a routine service-desk ticket. Tests scope disambiguation + escalation fallback."
+    }
+  ]
+}

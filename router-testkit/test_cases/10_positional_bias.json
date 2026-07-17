@@ -1,0 +1,60 @@
+{
+  "category_file": "10_positional_bias",
+  "cases": [
+    {
+      "id": "TC-1001",
+      "category": "positional_bias",
+      "query": "Resolve the user account for the email jordan@corp.com.",
+      "context": {
+        "shuffle_catalog": true,
+        "note": "Harness should present the 4 identity tools in randomized order across runs; correct pick must be email-based regardless of position."
+      },
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "user.get_user_by_email",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "user.get_user",
+          "user.fetch_profile",
+          "user.lookup_member"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Only get_user_by_email accepts an email. Tests that selection is driven by the id/email signal, not by which near-dup happens to appear first."
+    },
+    {
+      "id": "TC-1002",
+      "category": "positional_bias",
+      "query": "I need the workspace membership metadata (seat type, join date) for member M-55.",
+      "context": {
+        "shuffle_catalog": true
+      },
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "user.lookup_member",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "user.get_user",
+          "user.fetch_profile",
+          "user.get_user_by_email"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "'membership metadata / seat type' points uniquely to lookup_member even though get_user is the more prominent/canonical tool."
+    }
+  ]
+}

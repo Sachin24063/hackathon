@@ -1,0 +1,182 @@
+{
+  "guardrail_spec": {
+    "description": "Fixtures for the Schema Intake Guardrail. Each submission has an expected verdict. A correct validator ACCEPTS every entry in valid_submissions and REJECTS every entry in invalid_submissions, matching the expected_reason code.",
+    "structural_rules": {
+      "required_fields": ["id", "name", "cluster", "description", "parameters", "returns"],
+      "id_pattern": "^[a-z_]+\\.[a-z0-9_]+$  (cluster-prefixed, lowercase, no spaces)",
+      "name_pattern": "^[a-z][a-z0-9_]*$",
+      "description_min_words": 6,
+      "description_max_chars": 500,
+      "max_parameters": 12,
+      "allowed_param_types": ["string", "number", "integer", "boolean", "array", "object"],
+      "version_pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "deprecated_requires": "replaced_by must reference an existing, non-deprecated tool id",
+      "unique_id": "id must not collide with an already-registered tool"
+    },
+    "reason_codes": [
+      "MISSING_REQUIRED_FIELD", "MALFORMED_JSON_STRUCTURE", "BAD_ID_FORMAT",
+      "BAD_NAME_FORMAT", "DESCRIPTION_TOO_VAGUE", "DESCRIPTION_TOO_LONG",
+      "TOO_MANY_PARAMETERS", "INVALID_PARAM_TYPE", "BAD_VERSION_FORMAT",
+      "DUPLICATE_ID", "DANGLING_REPLACED_BY", "CIRCULAR_VERSION_REF"
+    ]
+  },
+
+  "valid_submissions": [
+    {
+      "id": "fin.get_tax_summary",
+      "name": "get_tax_summary",
+      "cluster": "finance",
+      "description": "Retrieve the aggregated tax liability summary for a fiscal period broken down by jurisdiction.",
+      "version": "1.0.0",
+      "parameters": [
+        {"name": "period", "type": "string", "required": true, "description": "fiscal period, e.g. FY2025"}
+      ],
+      "returns": {"type": "object", "fields": ["total_tax", "by_jurisdiction"]}
+    },
+    {
+      "id": "it.get_deploy_history",
+      "name": "get_deploy_history",
+      "cluster": "it_devops",
+      "description": "Return the recent deployment history for a service including version, actor and timestamp.",
+      "version": "1.2.0",
+      "parameters": [
+        {"name": "service", "type": "string", "required": true, "description": "service name"},
+        {"name": "limit", "type": "integer", "required": false, "description": "max rows"}
+      ],
+      "returns": {"type": "object", "fields": ["deployments"]}
+    }
+  ],
+
+  "invalid_submissions": [
+    {
+      "submission": {
+        "id": "misc.do_stuff",
+        "name": "do_stuff",
+        "cluster": "misc",
+        "description": "Does stuff.",
+        "parameters": [],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "DESCRIPTION_TOO_VAGUE",
+      "note": "Under 6 words and semantically empty — router cannot categorize it safely."
+    },
+    {
+      "submission": {
+        "id": "comm.send email",
+        "name": "send email",
+        "cluster": "communication",
+        "description": "Send an email message to a recipient with subject and body content.",
+        "parameters": [{"name": "to", "type": "string", "required": true}],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "BAD_ID_FORMAT",
+      "note": "id and name contain a space; must be snake_case, cluster-prefixed."
+    },
+    {
+      "submission": {
+        "id": "hr.get_thing",
+        "cluster": "hr",
+        "description": "Retrieve a thing from the HR system for a given employee identifier value.",
+        "parameters": [],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "MISSING_REQUIRED_FIELD",
+      "note": "Missing 'name' field."
+    },
+    {
+      "submission": {
+        "id": "user.get_user",
+        "name": "get_user",
+        "cluster": "identity",
+        "description": "Duplicate of an already-registered canonical user lookup tool endpoint.",
+        "parameters": [{"name": "user_id", "type": "string", "required": true}],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "DUPLICATE_ID",
+      "note": "id user.get_user already exists in the live catalog."
+    },
+    {
+      "submission": {
+        "id": "bi.big_query_thing",
+        "name": "big_query_thing",
+        "cluster": "analytics",
+        "description": "Run a query against the warehouse and return rows to the caller for analysis and reporting.",
+        "parameters": [
+          {"name": "sql", "type": "text", "required": true}
+        ],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "INVALID_PARAM_TYPE",
+      "note": "'text' is not an allowed parameter type (use 'string')."
+    },
+    {
+      "submission": {
+        "id": "ops.mega_tool",
+        "name": "mega_tool",
+        "cluster": "it_devops",
+        "description": "A single catch-all operations tool that can do almost anything across the entire platform in one call.",
+        "parameters": [
+          {"name": "p1", "type": "string", "required": true},
+          {"name": "p2", "type": "string", "required": true},
+          {"name": "p3", "type": "string", "required": true},
+          {"name": "p4", "type": "string", "required": true},
+          {"name": "p5", "type": "string", "required": true},
+          {"name": "p6", "type": "string", "required": true},
+          {"name": "p7", "type": "string", "required": true},
+          {"name": "p8", "type": "string", "required": true},
+          {"name": "p9", "type": "string", "required": true},
+          {"name": "p10", "type": "string", "required": true},
+          {"name": "p11", "type": "string", "required": true},
+          {"name": "p12", "type": "string", "required": true},
+          {"name": "p13", "type": "string", "required": true}
+        ],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "TOO_MANY_PARAMETERS",
+      "note": "13 parameters exceeds the max of 12; also a design smell (god-tool)."
+    },
+    {
+      "submission": {
+        "id": "fin.create_invoice_v3",
+        "name": "create_invoice_v3",
+        "cluster": "finance",
+        "description": "Next generation invoice creation tool superseding the previous invoice creation tools entirely.",
+        "version": "3.0",
+        "deprecated": false,
+        "parameters": [{"name": "customer_id", "type": "string", "required": true}],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "BAD_VERSION_FORMAT",
+      "note": "version '3.0' is not semver x.y.z."
+    },
+    {
+      "submission": {
+        "id": "legal.archive_contract",
+        "name": "archive_contract",
+        "cluster": "legal",
+        "description": "Archive a contract record so it no longer appears in the active contracts list view.",
+        "version": "1.0.0",
+        "deprecated": true,
+        "replaced_by": "legal.contract_archiver_2000",
+        "parameters": [{"name": "contract_id", "type": "string", "required": true}],
+        "returns": {"type": "object"}
+      },
+      "expected_verdict": "reject",
+      "expected_reason": "DANGLING_REPLACED_BY",
+      "note": "replaced_by points to a tool id that does not exist in the catalog."
+    },
+    {
+      "submission": "{ id: 'crm.oops', name: 'oops', description: 'trailing comma and unquoted keys', }",
+      "expected_verdict": "reject",
+      "expected_reason": "MALFORMED_JSON_STRUCTURE",
+      "note": "Submission is not valid JSON (unquoted keys, trailing comma, single quotes)."
+    }
+  ]
+}

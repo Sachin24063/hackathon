@@ -1,0 +1,79 @@
+{
+  "category_file": "01_single_tool",
+  "cases": [
+    {
+      "id": "TC-101",
+      "category": "single_tool",
+      "query": "What was our total revenue last quarter?",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "fin.get_revenue_report",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "fin.fetch_quarterly_earnings",
+          "fin.get_pnl_statement",
+          "bi.get_metric_timeseries"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Plain revenue-by-period ask. get_revenue_report is the direct fit; fetch_quarterly_earnings is the audited-earnings near-dup and should lose on confidence."
+    },
+    {
+      "id": "TC-102",
+      "category": "single_tool",
+      "query": "Restart the payments-api service in production.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "it.restart_service",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "it.deploy_application",
+          "it.rollback_deployment",
+          "it.scale_service"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Single mutating ops action; must not confuse with deploy/rollback."
+    },
+    {
+      "id": "TC-103",
+      "category": "single_tool",
+      "query": "Find me open time slots next week for a 30-min sync with Priya and Sam.",
+      "context": {},
+      "expected": {
+        "tools_required": [
+          {
+            "tool_id": "cal.find_available_slots",
+            "min_calls": 1,
+            "max_calls": 1
+          }
+        ],
+        "order": null,
+        "forbidden": [
+          "cal.schedule_meeting",
+          "cal.create_calendar_event"
+        ],
+        "should_clarify": false,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "User asked only to FIND slots, not to book \u2014 schedule_meeting would over-act."
+    }
+  ]
+}

@@ -1,0 +1,2637 @@
+{
+  "catalog_version": "1.0.0",
+  "generated_for": "AI Tool-Routing Hackathon",
+  "tool_count": 64,
+  "clusters": [
+    "analytics",
+    "calendar",
+    "cloud_storage",
+    "communication",
+    "crm",
+    "data_export",
+    "documents",
+    "finance",
+    "hr",
+    "identity",
+    "it_devops",
+    "legal",
+    "marketing"
+  ],
+  "near_duplicate_groups": [
+    [
+      "fin.get_revenue_report",
+      "fin.fetch_quarterly_earnings"
+    ],
+    [
+      "bi.generate_chart",
+      "bi.create_visualization"
+    ],
+    [
+      "comm.send_email",
+      "comm.send_email_with_attachment",
+      "comm.schedule_email"
+    ],
+    [
+      "user.get_user",
+      "user.fetch_profile",
+      "user.lookup_member",
+      "user.get_user_by_email"
+    ],
+    [
+      "hr.get_employee_record",
+      "hr.lookup_employee"
+    ],
+    [
+      "it.create_ticket",
+      "it.open_incident"
+    ],
+    [
+      "cal.create_calendar_event",
+      "cal.schedule_meeting"
+    ],
+    [
+      "doc.upload_file",
+      "storage.upload_to_s3"
+    ],
+    [
+      "data.export_to_csv",
+      "data.export_to_excel"
+    ]
+  ],
+  "version_families": [
+    {
+      "family": "create_invoice",
+      "current": "fin.create_invoice_v2",
+      "deprecated": [
+        "fin.create_invoice"
+      ]
+    }
+  ],
+  "cross_cluster_traps": [
+    {
+      "tool": "data.email_report",
+      "looks_like": "communication",
+      "actually": "data_export"
+    },
+    {
+      "tool": "mkt.send_campaign",
+      "looks_like": "communication",
+      "actually": "marketing"
+    }
+  ],
+  "tools": [
+    {
+      "id": "fin.get_revenue_report",
+      "name": "get_revenue_report",
+      "cluster": "finance",
+      "description": "Retrieve total booked revenue for a given time period, broken down by business unit. Read-only reporting endpoint used for financial summaries.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "revenue",
+        "reporting",
+        "financials"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "period",
+          "type": "string",
+          "required": true,
+          "description": "e.g. 'Q3-2025', 'last_quarter', '2025-01'"
+        },
+        {
+          "name": "business_unit",
+          "type": "string",
+          "required": false,
+          "description": "Filter to a single BU; omit for company-wide"
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "total_revenue",
+          "currency",
+          "by_unit"
+        ]
+      }
+    },
+    {
+      "id": "fin.fetch_quarterly_earnings",
+      "name": "fetch_quarterly_earnings",
+      "cluster": "finance",
+      "description": "Fetch published quarterly earnings figures (revenue, net income, EPS) as reported to shareholders. Sourced from the closed/audited ledger.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "revenue",
+        "earnings",
+        "financials"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "quarter",
+          "type": "string",
+          "required": true,
+          "description": "e.g. 'Q3-2025'"
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "revenue",
+          "net_income",
+          "eps"
+        ]
+      }
+    },
+    {
+      "id": "fin.get_pnl_statement",
+      "name": "get_pnl_statement",
+      "cluster": "finance",
+      "description": "Generate a profit-and-loss statement showing income, cost of goods sold, operating expenses and net profit for a period.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "pnl",
+        "financials"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "period",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "granularity",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum": [
+            "monthly",
+            "quarterly",
+            "annual"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "income",
+          "cogs",
+          "opex",
+          "net_profit"
+        ]
+      }
+    },
+    {
+      "id": "fin.create_invoice",
+      "name": "create_invoice",
+      "cluster": "finance",
+      "description": "[DEPRECATED \u2014 use create_invoice_v2] Create a customer invoice using the legacy flat line-item format. Kept alive only for the audit/reconciliation pipeline that still parses the v1 field layout.",
+      "version": "1.4.2",
+      "deprecated": true,
+      "replaces": null,
+      "replaced_by": "fin.create_invoice_v2",
+      "sunset_date": "2026-12-31",
+      "aliases": [],
+      "tags": [
+        "invoice",
+        "billing",
+        "legacy"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "customer",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "line_items",
+          "type": "array",
+          "required": false,
+          "description": "flat list of strings"
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "invoice_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "fin.create_invoice_v2",
+      "name": "create_invoice_v2",
+      "cluster": "finance",
+      "description": "Create a customer invoice (current version). Supports structured line items with tax codes, multi-currency, and payment terms. This is the recommended tool for all new invoice creation.",
+      "version": "2.1.0",
+      "deprecated": false,
+      "replaces": "fin.create_invoice",
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "invoice",
+        "billing"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "currency",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "line_items",
+          "type": "array",
+          "required": true,
+          "description": "objects: {sku, qty, unit_price, tax_code}"
+        },
+        {
+          "name": "payment_terms",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum": [
+            "net15",
+            "net30",
+            "net60"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "invoice_id",
+          "status",
+          "total"
+        ]
+      }
+    },
+    {
+      "id": "fin.get_expense_summary",
+      "name": "get_expense_summary",
+      "cluster": "finance",
+      "description": "Summarize categorized company expenses for a period.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "expenses",
+        "financials"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "period",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "total",
+          "by_category"
+        ]
+      }
+    },
+    {
+      "id": "fin.process_payment",
+      "name": "process_payment",
+      "cluster": "finance",
+      "description": "Charge a stored payment method and record the transaction. Mutating.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "payment",
+        "billing"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "method_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "transaction_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "fin.get_budget_forecast",
+      "name": "get_budget_forecast",
+      "cluster": "finance",
+      "description": "Return the forward-looking budget forecast for a department.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "budget",
+        "forecast"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "department",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "horizon_months",
+          "type": "integer",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "forecast",
+          "assumptions"
+        ]
+      }
+    },
+    {
+      "id": "comm.send_email",
+      "name": "send_email",
+      "cluster": "communication",
+      "description": "Send a plain-text or HTML email to one or more recipients. Body only; does NOT support file attachments.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "email",
+        "messaging"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "to",
+          "type": "array",
+          "required": true,
+          "description": "list of recipient addresses"
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "message_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "comm.send_email_with_attachment",
+      "name": "send_email_with_attachment",
+      "cluster": "communication",
+      "description": "Send an email that carries one or more file attachments (e.g. a chart image, PDF, or spreadsheet). Use this whenever a file must be delivered by email; plain send_email cannot attach files.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "email",
+        "attachment",
+        "messaging"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "to",
+          "type": "array",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "attachment_ids",
+          "type": "array",
+          "required": true,
+          "description": "file/asset ids to attach"
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "message_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "comm.send_slack_message",
+      "name": "send_slack_message",
+      "cluster": "communication",
+      "description": "Post a message to a Slack channel or direct message.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "slack",
+        "messaging"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "channel",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "ts",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "comm.send_sms",
+      "name": "send_sms",
+      "cluster": "communication",
+      "description": "Send an SMS text message to a phone number.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "sms",
+        "messaging"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "phone",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "sid",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "comm.post_teams_message",
+      "name": "post_teams_message",
+      "cluster": "communication",
+      "description": "Post a message to a Microsoft Teams channel.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "teams",
+        "messaging"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "team",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "channel",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "message_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "comm.schedule_email",
+      "name": "schedule_email",
+      "cluster": "communication",
+      "description": "Queue an email to be sent at a future timestamp. Body only, no attachments.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "email",
+        "scheduled",
+        "messaging"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "to",
+          "type": "array",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "send_at",
+          "type": "string",
+          "required": true,
+          "description": "ISO-8601"
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "scheduled_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "bi.generate_chart",
+      "name": "generate_chart",
+      "cluster": "analytics",
+      "description": "Render a chart image (PNG) from a supplied dataset or query result and return an asset id that can be attached or embedded.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "chart",
+        "visualization"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "data_ref",
+          "type": "string",
+          "required": true,
+          "description": "id of a dataset/query result"
+        },
+        {
+          "name": "chart_type",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "enum": [
+            "bar",
+            "line",
+            "pie",
+            "scatter"
+          ]
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "asset_id",
+          "url"
+        ]
+      }
+    },
+    {
+      "id": "bi.create_visualization",
+      "name": "create_visualization",
+      "cluster": "analytics",
+      "description": "Build an interactive visualization in the BI workspace from a dataset. Produces a dashboard tile, not a downloadable image file.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "chart",
+        "visualization",
+        "dashboard"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "dataset_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "viz_type",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "tile_id",
+          "workspace_url"
+        ]
+      }
+    },
+    {
+      "id": "bi.run_sql_query",
+      "name": "run_sql_query",
+      "cluster": "analytics",
+      "description": "Execute a read-only SQL query against the analytics warehouse and return rows. Results can be referenced by chart/export tools.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "sql",
+        "query",
+        "warehouse"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "sql",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "rows",
+          "result_ref"
+        ]
+      }
+    },
+    {
+      "id": "bi.export_dashboard",
+      "name": "export_dashboard",
+      "cluster": "analytics",
+      "description": "Export an existing BI dashboard to a PDF snapshot.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "dashboard",
+        "export"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "dashboard_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "asset_id",
+          "url"
+        ]
+      }
+    },
+    {
+      "id": "bi.get_metric_timeseries",
+      "name": "get_metric_timeseries",
+      "cluster": "analytics",
+      "description": "Fetch a named business metric as a time series over a date range.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "metric",
+        "timeseries"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "metric",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "start",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "end",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "points"
+        ]
+      }
+    },
+    {
+      "id": "hr.get_employee_record",
+      "name": "get_employee_record",
+      "cluster": "hr",
+      "description": "Retrieve a full HR employee record including legal name, home address, national ID / SSN, compensation band and employment status. PII-scoped; requires HR permissions.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "employee",
+        "pii",
+        "hr"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "employee_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "legal_name",
+          "address",
+          "ssn",
+          "comp_band",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "hr.lookup_employee",
+      "name": "lookup_employee",
+      "cluster": "hr",
+      "description": "Search the employee directory by name or department and return basic contact info (work email, title, manager). Non-PII directory view.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "employee",
+        "directory",
+        "hr"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "description": "name or department"
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "employee_id",
+          "work_email",
+          "title",
+          "manager"
+        ]
+      }
+    },
+    {
+      "id": "hr.request_time_off",
+      "name": "request_time_off",
+      "cluster": "hr",
+      "description": "Submit a paid-time-off request for approval.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "pto",
+        "hr"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "employee_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "start",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "end",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum": [
+            "pto",
+            "sick",
+            "unpaid"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "request_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "hr.get_payroll_info",
+      "name": "get_payroll_info",
+      "cluster": "hr",
+      "description": "Retrieve an employee's payroll details (gross pay, deductions, net pay).",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "payroll",
+        "pii",
+        "hr"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "employee_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "gross",
+          "deductions",
+          "net"
+        ]
+      }
+    },
+    {
+      "id": "hr.submit_expense_reimbursement",
+      "name": "submit_expense_reimbursement",
+      "cluster": "hr",
+      "description": "File an employee expense reimbursement claim.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "expense",
+        "reimbursement",
+        "hr"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "employee_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "receipt_id",
+          "type": "string",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "claim_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "hr.get_org_chart",
+      "name": "get_org_chart",
+      "cluster": "hr",
+      "description": "Return the reporting hierarchy under a given manager.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "org",
+        "hierarchy",
+        "hr"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "root_employee_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "depth",
+          "type": "integer",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "tree"
+        ]
+      }
+    },
+    {
+      "id": "user.get_user",
+      "name": "get_user",
+      "cluster": "identity",
+      "description": "Fetch an application user account by user id. Returns account profile: display name, email, roles, status. The canonical user-account lookup.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "user",
+        "profile",
+        "identity"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "user_id",
+          "display_name",
+          "email",
+          "roles",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "user.fetch_profile",
+      "name": "fetch_profile",
+      "cluster": "identity",
+      "description": "Fetch a user's public profile (avatar, bio, display name) by user id. Read-only presentation view; does NOT include roles or account status.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "user",
+        "profile",
+        "identity"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "display_name",
+          "avatar",
+          "bio"
+        ]
+      }
+    },
+    {
+      "id": "user.lookup_member",
+      "name": "lookup_member",
+      "cluster": "identity",
+      "description": "Look up a member of a workspace/org by id and return membership metadata (joined date, seat type, workspace roles).",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "user",
+        "member",
+        "identity"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "member_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "member_id",
+          "joined",
+          "seat_type",
+          "roles"
+        ]
+      }
+    },
+    {
+      "id": "user.get_user_by_email",
+      "name": "get_user_by_email",
+      "cluster": "identity",
+      "description": "Resolve a user account from an email address (the other lookups require a user id). Returns the same account profile as get_user.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "user",
+        "profile",
+        "identity",
+        "email"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "email",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "user_id",
+          "display_name",
+          "email",
+          "roles",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "user.deactivate_user",
+      "name": "deactivate_user",
+      "cluster": "identity",
+      "description": "Disable a user account so they can no longer sign in. Reversible.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "user",
+        "identity",
+        "admin"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "user_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "it.create_ticket",
+      "name": "create_ticket",
+      "cluster": "it_devops",
+      "description": "Open a general IT service-desk ticket (e.g. laptop request, access request). Routed to the IT support queue, not on-call engineering.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "ticket",
+        "servicedesk",
+        "it"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "priority",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "ticket_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "it.open_incident",
+      "name": "open_incident",
+      "cluster": "it_devops",
+      "description": "Declare a production incident and page the on-call engineer. Use for outages / service degradation, NOT routine support requests.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "incident",
+        "oncall",
+        "it"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "summary",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "severity",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "enum": [
+            "sev1",
+            "sev2",
+            "sev3"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "incident_id",
+          "pager_status"
+        ]
+      }
+    },
+    {
+      "id": "it.restart_service",
+      "name": "restart_service",
+      "cluster": "it_devops",
+      "description": "Restart a named backend service in a given environment.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "service",
+        "ops",
+        "it"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "service",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "environment",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "enum": [
+            "dev",
+            "staging",
+            "prod"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "service",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "it.deploy_application",
+      "name": "deploy_application",
+      "cluster": "it_devops",
+      "description": "Deploy a specified application version to an environment.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "deploy",
+        "ops",
+        "it"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "app",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "environment",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "enum": [
+            "dev",
+            "staging",
+            "prod"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "deployment_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "it.get_service_health",
+      "name": "get_service_health",
+      "cluster": "it_devops",
+      "description": "Return current health/uptime metrics for a service.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "health",
+        "monitoring",
+        "it"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "service",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "status",
+          "latency_ms",
+          "error_rate"
+        ]
+      }
+    },
+    {
+      "id": "it.rollback_deployment",
+      "name": "rollback_deployment",
+      "cluster": "it_devops",
+      "description": "Roll a service back to its previous deployed version.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "rollback",
+        "ops",
+        "it"
+      ],
+      "side_effects": "destructive",
+      "parameters": [
+        {
+          "name": "service",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "environment",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "deployment_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "it.scale_service",
+      "name": "scale_service",
+      "cluster": "it_devops",
+      "description": "Change the replica count for a service.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "scale",
+        "ops",
+        "it"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "service",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "replicas",
+          "type": "integer",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "service",
+          "replicas"
+        ]
+      }
+    },
+    {
+      "id": "crm.get_customer",
+      "name": "get_customer",
+      "cluster": "crm",
+      "description": "Retrieve a CRM customer/account record (company, tier, owner, ARR).",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "customer",
+        "account",
+        "crm"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "name",
+          "tier",
+          "owner",
+          "arr"
+        ]
+      }
+    },
+    {
+      "id": "crm.create_lead",
+      "name": "create_lead",
+      "cluster": "crm",
+      "description": "Create a new sales lead in the CRM.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "lead",
+        "crm"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "lead_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "crm.update_opportunity",
+      "name": "update_opportunity",
+      "cluster": "crm",
+      "description": "Update the stage or amount of a sales opportunity.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "opportunity",
+        "crm"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "opportunity_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "stage",
+          "type": "string",
+          "required": false,
+          "description": ""
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "opportunity_id",
+          "stage"
+        ]
+      }
+    },
+    {
+      "id": "crm.get_sales_pipeline",
+      "name": "get_sales_pipeline",
+      "cluster": "crm",
+      "description": "Summarize the sales pipeline by stage for a team or rep.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "pipeline",
+        "crm"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "owner",
+          "type": "string",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "by_stage",
+          "total_value"
+        ]
+      }
+    },
+    {
+      "id": "crm.log_call",
+      "name": "log_call",
+      "cluster": "crm",
+      "description": "Log a sales call activity against a customer.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "activity",
+        "crm"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "activity_id"
+        ]
+      }
+    },
+    {
+      "id": "cal.create_calendar_event",
+      "name": "create_calendar_event",
+      "cluster": "calendar",
+      "description": "Create a calendar event on a single user's calendar (no invitee coordination).",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "calendar",
+        "event"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "start",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "end",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "event_id"
+        ]
+      }
+    },
+    {
+      "id": "cal.schedule_meeting",
+      "name": "schedule_meeting",
+      "cluster": "calendar",
+      "description": "Schedule a meeting across multiple attendees, resolving a common free slot and sending invites. Use when >1 attendee must be coordinated.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "calendar",
+        "meeting"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "attendees",
+          "type": "array",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "duration_min",
+          "type": "integer",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "event_id",
+          "slot"
+        ]
+      }
+    },
+    {
+      "id": "cal.find_available_slots",
+      "name": "find_available_slots",
+      "cluster": "calendar",
+      "description": "Return open time slots common to a set of attendees.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "calendar",
+        "availability"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "attendees",
+          "type": "array",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "duration_min",
+          "type": "integer",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "slots"
+        ]
+      }
+    },
+    {
+      "id": "cal.cancel_event",
+      "name": "cancel_event",
+      "cluster": "calendar",
+      "description": "Cancel a scheduled calendar event.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "calendar",
+        "cancel"
+      ],
+      "side_effects": "destructive",
+      "parameters": [
+        {
+          "name": "event_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "event_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "doc.upload_file",
+      "name": "upload_file",
+      "cluster": "documents",
+      "description": "Upload a file into the document management system and return a document id.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "file",
+        "upload",
+        "dms"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "filename",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "content_ref",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "document_id"
+        ]
+      }
+    },
+    {
+      "id": "doc.get_document",
+      "name": "get_document",
+      "cluster": "documents",
+      "description": "Fetch a document's metadata and content by document id.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "file",
+        "dms"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "document_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "document_id",
+          "name",
+          "content_ref"
+        ]
+      }
+    },
+    {
+      "id": "doc.search_documents",
+      "name": "search_documents",
+      "cluster": "documents",
+      "description": "Full-text search across the document management system.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "file",
+        "search",
+        "dms"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "results"
+        ]
+      }
+    },
+    {
+      "id": "doc.share_document",
+      "name": "share_document",
+      "cluster": "documents",
+      "description": "Grant a user access to a document and optionally notify them.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "file",
+        "share",
+        "dms"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "document_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "user_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum": [
+            "viewer",
+            "editor"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "document_id",
+          "shared_with"
+        ]
+      }
+    },
+    {
+      "id": "doc.convert_document",
+      "name": "convert_document",
+      "cluster": "documents",
+      "description": "Convert a document from one format to another (e.g. docx -> pdf).",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "file",
+        "convert",
+        "dms"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "document_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "target_format",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "document_id",
+          "asset_id"
+        ]
+      }
+    },
+    {
+      "id": "doc.delete_file",
+      "name": "delete_file",
+      "cluster": "documents",
+      "description": "Permanently delete a document from the DMS.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "file",
+        "delete",
+        "dms"
+      ],
+      "side_effects": "destructive",
+      "parameters": [
+        {
+          "name": "document_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "document_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "storage.upload_to_s3",
+      "name": "upload_to_s3",
+      "cluster": "cloud_storage",
+      "description": "Upload a raw object (bytes/blob) to an S3 bucket. Low-level object storage \u2014 NOT the document management system; no indexing or search.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "s3",
+        "blob",
+        "storage"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "content_ref",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "etag",
+          "uri"
+        ]
+      }
+    },
+    {
+      "id": "storage.get_object",
+      "name": "get_object",
+      "cluster": "cloud_storage",
+      "description": "Download a raw object from an S3 bucket by key.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "s3",
+        "blob",
+        "storage"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "content_ref"
+        ]
+      }
+    },
+    {
+      "id": "storage.list_buckets",
+      "name": "list_buckets",
+      "cluster": "cloud_storage",
+      "description": "List all S3 buckets in the account.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "s3",
+        "storage"
+      ],
+      "side_effects": "read",
+      "parameters": [],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "buckets"
+        ]
+      }
+    },
+    {
+      "id": "mkt.send_campaign",
+      "name": "send_campaign",
+      "cluster": "marketing",
+      "description": "Send a marketing email campaign to a saved audience segment. This is a bulk marketing blast, NOT a transactional 1:1 email.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "campaign",
+        "email",
+        "marketing"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "campaign_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "segment_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "campaign_id",
+          "sent_count"
+        ]
+      }
+    },
+    {
+      "id": "mkt.get_campaign_metrics",
+      "name": "get_campaign_metrics",
+      "cluster": "marketing",
+      "description": "Retrieve open/click/conversion metrics for a marketing campaign.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "campaign",
+        "metrics",
+        "marketing"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "campaign_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "opens",
+          "clicks",
+          "conversions"
+        ]
+      }
+    },
+    {
+      "id": "mkt.create_segment",
+      "name": "create_segment",
+      "cluster": "marketing",
+      "description": "Create an audience segment from filter criteria.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "segment",
+        "marketing"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "filters",
+          "type": "object",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "segment_id"
+        ]
+      }
+    },
+    {
+      "id": "legal.get_contract",
+      "name": "get_contract",
+      "cluster": "legal",
+      "description": "Retrieve a stored contract record and its status.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "contract",
+        "legal"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "contract_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "contract_id",
+          "status",
+          "parties"
+        ]
+      }
+    },
+    {
+      "id": "legal.request_signature",
+      "name": "request_signature",
+      "cluster": "legal",
+      "description": "Send a contract for e-signature to named signers.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "signature",
+        "esign",
+        "legal"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "contract_id",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "signers",
+          "type": "array",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "envelope_id",
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "legal.run_compliance_check",
+      "name": "run_compliance_check",
+      "cluster": "legal",
+      "description": "Run an automated compliance policy check against a document or record.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "compliance",
+        "legal"
+      ],
+      "side_effects": "read",
+      "parameters": [
+        {
+          "name": "target_ref",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "policy",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "passed",
+          "violations"
+        ]
+      }
+    },
+    {
+      "id": "data.export_to_csv",
+      "name": "export_to_csv",
+      "cluster": "data_export",
+      "description": "Export a query result or dataset to a downloadable CSV file and return an asset id.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "export",
+        "csv"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "result_ref",
+          "type": "string",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "asset_id",
+          "url"
+        ]
+      }
+    },
+    {
+      "id": "data.export_to_excel",
+      "name": "export_to_excel",
+      "cluster": "data_export",
+      "description": "Export a query result or dataset to a formatted .xlsx workbook and return an asset id. Use when the user specifically needs Excel formatting/sheets.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "export",
+        "excel",
+        "xlsx"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "result_ref",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "sheet_name",
+          "type": "string",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "asset_id",
+          "url"
+        ]
+      }
+    },
+    {
+      "id": "data.email_report",
+      "name": "email_report",
+      "cluster": "data_export",
+      "description": "Convenience wrapper that renders a dataset as an attached file and emails it in one step. Despite the name this lives in the DATA-EXPORT cluster; it only handles report delivery, it cannot send a free-form email.",
+      "version": "1.0.0",
+      "deprecated": false,
+      "replaces": null,
+      "replaced_by": null,
+      "sunset_date": null,
+      "aliases": [],
+      "tags": [
+        "export",
+        "email",
+        "report"
+      ],
+      "side_effects": "write",
+      "parameters": [
+        {
+          "name": "result_ref",
+          "type": "string",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "to",
+          "type": "array",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "enum": [
+            "csv",
+            "xlsx",
+            "pdf"
+          ]
+        }
+      ],
+      "returns": {
+        "type": "object",
+        "fields": [
+          "message_id",
+          "asset_id"
+        ]
+      }
+    }
+  ]
+}

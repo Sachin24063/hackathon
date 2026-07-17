@@ -2,9 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { toolsRegistry, getToolByName } from './registry.js';
-import { runLocalRouter, runClaudeRouter } from './router.js';
+import { exec } from 'child_process';
+import { TSIntelligentRouter } from './intelligent-router.js';
 dotenv.config();
 // Global error handlers to capture silent crashes
 process.on('uncaughtException', (err) => {
@@ -15,6 +16,63 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Load dynamic testkit catalog as the enterprise catalog source of truth
+const catalogPath = path.resolve(__dirname, '../../router-testkit/catalog/tools_catalog.json');
+let testkitCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+// Helper to look up tool metadata in catalog
+function getToolFromCatalog(idOrName) {
+    return testkitCatalog.tools.find((t) => t.id === idOrName || t.name === idOrName);
+}
+// Helper to execute mock response based on returns metadata
+function executeMockTool(tool, params) {
+    const response = {};
+    if (tool.returns && Array.isArray(tool.returns.fields)) {
+        for (const field of tool.returns.fields) {
+            if (field.includes('revenue') || field.includes('earnings') || field.includes('profit') || field.includes('tax') || field.includes('liability')) {
+                response[field] = `$${(Math.floor(Math.random() * 500000) + 100000).toLocaleString('en-US')}`;
+            }
+            else if (field.includes('id') || field.includes('key') || field.includes('ts')) {
+                response[field] = `${tool.cluster.substring(0, 3).toUpperCase()}-${Math.floor(Math.random() * 90000) + 10000}`;
+            }
+            else if (field.includes('status') || field.includes('verdict')) {
+                response[field] = 'SUCCESS';
+            }
+            else if (field.includes('email') || field.includes('recipient') || field.includes('to')) {
+                response[field] = params.email || params.to || params.cfo || 'finance@corp.com';
+            }
+            else if (field.includes('list') || field.includes('history') || field.includes('deployments') || field.includes('slots') || field.includes('fields')) {
+                response[field] = [
+                    { id: '1', name: 'Record A', status: 'verified', timestamp: new Date().toISOString() },
+                    { id: '2', name: 'Record B', status: 'active', timestamp: new Date().toISOString() }
+                ];
+            }
+            else {
+                response[field] = `mock_val_${field}`;
+            }
+        }
+    }
+    else {
+        response['status'] = 'SUCCESS';
+        response['timestamp'] = new Date().toISOString();
+    }
+    return response;
+}
+// Assign virtual role permissions based on tool cluster for RBAC simulation
+function getToolRequiredPermissions(tool) {
+    const cluster = tool.cluster ? tool.cluster.toLowerCase() : '';
+    const name = tool.name ? tool.name.toLowerCase() : '';
+    if (cluster === 'finance') {
+        return ['Finance', 'CFO', 'Administrator'];
+    }
+    else if (cluster === 'hr' && (name.includes('ssn') || name.includes('record') || name.includes('employee'))) {
+        return ['HR', 'Administrator'];
+    }
+    else if (cluster === 'it_devops' && (name.includes('deploy') || name.includes('restart') || name.includes('rollback'))) {
+        return ['IT_Admin', 'Administrator'];
+    }
+    // Open tools accessible to all roles including default Employee and Manager
+    return ['Employee', 'Manager', 'Finance', 'CFO', 'HR', 'IT_Admin', 'Administrator'];
+}
 const app = express();
 const PORT = process.env.PORT || 3001;
 app.use(cors());
@@ -77,6 +135,24 @@ const mockDatabase = {
         address: '228 Cyberdyne Rd, Cupertino, CA 95014',
         leaves: { casual: 15, sick: 10, annual: 25, pendingApproval: 0 },
         leaveRequests: []
+    },
+    'USR-006': {
+        userId: 'USR-006',
+        name: 'Robert Vance',
+        role: 'CFO',
+        phone: '+1 (555) 015-4422',
+        address: '100 Financial Way, San Francisco, CA 94111',
+        leaves: { casual: 10, sick: 10, annual: 30, pendingApproval: 0 },
+        leaveRequests: []
+    },
+    'USR-007': {
+        userId: 'USR-007',
+        name: 'Alice Smith',
+        role: 'Administrator',
+        phone: '+1 (555) 016-5533',
+        address: '1 Enterprise Way, San Jose, CA 95113',
+        leaves: { casual: 15, sick: 15, annual: 25, pendingApproval: 0 },
+        leaveRequests: []
     }
 };
 const dbHelper = {
@@ -101,12 +177,9 @@ const auditLogs = [];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // ================= API ENDPOINTS =================
 // 1. Get Tool Catalog Registry
+// 1. Get Tool Catalog Registry
 app.get('/api/tools', (req, res) => {
-    const toolsWithoutHandlers = toolsRegistry.map(t => {
-        const { mockHandler, ...meta } = t;
-        return meta;
-    });
-    res.json(toolsWithoutHandlers);
+    res.json(testkitCatalog.tools || []);
 });
 // 2. Get Audit & System Logs
 app.get('/api/logs', (req, res) => {
@@ -130,7 +203,6 @@ app.post('/api/chat', async (req, res) => {
     };
     const user = dbHelper.getUserData(userId);
     const userName = user.name;
-    // Quick check if role has been overridden on client
     user.role = role;
     addTrace('Received Request', 'API Gateway', `Query: "${query}" | Role: ${role} | User: ${userName} (${userId})`);
     let routingResult;
@@ -140,71 +212,70 @@ app.post('/api/chat', async (req, res) => {
         // Simulate thinking latency
         const thinkingLatency = Math.min(2000, Math.max(100, simulatedLatency * 0.4));
         await sleep(thinkingLatency);
-        if (methodUsed === 'Claude') {
-            routingResult = await runClaudeRouter(query, history, role, apiKey, claudeModel);
+        const router = new TSIntelligentRouter(testkitCatalog);
+        const unifiedResult = router.route(query);
+        // Stream decision engine thought process steps
+        if (unifiedResult.traceLogs) {
+            for (const log of unifiedResult.traceLogs) {
+                addTrace('Decision Pipeline', 'Router Engine', log);
+            }
         }
-        else {
-            routingResult = runLocalRouter(query, history, role);
-        }
+        routingResult = {
+            department: unifiedResult.department,
+            confidence: unifiedResult.confidence,
+            needsClarification: unifiedResult.needsClarification,
+            clarificationPrompt: unifiedResult.clarificationPrompt,
+            toolCalls: unifiedResult.toolCalls
+        };
+        routingResult.selected_tools = unifiedResult.selected_tools;
+        routingResult.plan = unifiedResult.plan;
         // Intercept and bypass optimizations if toolOptimization is disabled
         if (!toolOptimization) {
             addTrace('Optimization Status Check', 'Execution Planner', '⚠️ Tool Optimization is OFF. Initializing brute-force scanning pipeline.', 'warning');
             routingResult.needsClarification = false;
-            routingResult.confidence = 0.25; // low confidence representing lack of precision
+            routingResult.confidence = 0.25;
             const unoptimizedCalls = [];
-            const dept = routingResult.department || 'Human Resources';
+            const dept = routingResult.department || 'FINANCE';
             // Step 1: User verification sweeps
             unoptimizedCalls.push({
-                toolName: 'employee_directory',
-                parameters: { searchQuery: userName }
+                toolName: 'get_user',
+                parameters: { user_id: 'U-1002' }
             });
             // Step 2 & 3: Scan candidate tools sequentially by department
-            if (dept === 'Human Resources') {
+            if (dept === 'HR' || dept === 'IDENTITY') {
                 unoptimizedCalls.push({
-                    toolName: 'policy_search',
-                    parameters: { searchTopic: 'Leave and attendance rules' }
+                    toolName: 'lookup_employee',
+                    parameters: { query: userName }
                 });
                 unoptimizedCalls.push({
-                    toolName: 'holiday_calendar',
-                    parameters: {}
-                });
-                unoptimizedCalls.push({
-                    toolName: 'attendance_status',
-                    parameters: { month: 'June' }
+                    toolName: 'get_employee_record',
+                    parameters: { employee_id: 'E-4471' }
                 });
             }
-            else if (dept === 'Information Technology' || dept === 'Security') {
+            else if (dept === 'IT_DEVOPS' || dept === 'CALENDAR') {
                 unoptimizedCalls.push({
-                    toolName: 'security_alert_status',
-                    parameters: {}
+                    toolName: 'create_ticket',
+                    parameters: { title: 'Service desk issue' }
                 });
                 unoptimizedCalls.push({
-                    toolName: 'policy_search',
-                    parameters: { searchTopic: 'IT usage and password policy' }
-                });
-                unoptimizedCalls.push({
-                    toolName: 'get_ticket_status',
-                    parameters: { ticketId: 'INC-773123' }
+                    toolName: 'open_incident',
+                    parameters: { description: 'Outage detected' }
                 });
             }
-            else if (dept === 'Finance' || dept === 'Procurement') {
+            else if (dept === 'FINANCE' || dept === 'DATA_EXPORT') {
                 unoptimizedCalls.push({
-                    toolName: 'get_budget_status',
-                    parameters: { targetDepartment: 'Engineering' }
+                    toolName: 'fetch_quarterly_earnings',
+                    parameters: { quarter: 'Q1' }
                 });
                 unoptimizedCalls.push({
-                    toolName: 'vendor_search',
-                    parameters: { supplyCategory: 'IT Equipment' }
-                });
-                unoptimizedCalls.push({
-                    toolName: 'compliance_report',
-                    parameters: { complianceYear: 2026 }
+                    toolName: 'get_pnl_statement',
+                    parameters: { period: 'Q1' }
                 });
             }
             else {
                 unoptimizedCalls.push({
-                    toolName: 'policy_search',
-                    parameters: { searchTopic: 'Standard operating procedures' }
+                    toolName: 'search_documents',
+                    parameters: { search_query: 'SOP' }
                 });
             }
             // Step 4: Append the original matched tool calls to the end of the chain
@@ -212,10 +283,9 @@ app.post('/api/chat', async (req, res) => {
                 unoptimizedCalls.push(...routingResult.toolCalls);
             }
             else {
-                const defaultTool = dept === 'Information Technology' ? 'reset_vpn_password' : 'leave_balance';
                 unoptimizedCalls.push({
-                    toolName: defaultTool,
-                    parameters: {}
+                    toolName: 'get_revenue_report',
+                    parameters: { period: 'Q1' }
                 });
             }
             routingResult.toolCalls = unoptimizedCalls;
@@ -250,7 +320,11 @@ app.post('/api/chat', async (req, res) => {
                     toolCallsCount: 0,
                     confidence: routingResult.confidence,
                     routerUsed: methodUsed
-                }
+                },
+                selected_tools: [],
+                plan: [],
+                clarify: true,
+                clarify_question: routingResult.clarificationPrompt
             });
         }
         // Case B: Router selected tools to execute
@@ -261,13 +335,8 @@ app.post('/api/chat', async (req, res) => {
             if (stopPlanning)
                 break;
             const call = routingResult.toolCalls[i];
-            // Context forwarding: if previous tool outputted an ID and this tool needs it
-            if (lastToolResult && lastToolResult.meetingId && call.parameters.meetingId === 'MTG-TEMP') {
-                call.parameters.meetingId = lastToolResult.meetingId;
-                addTrace('Context Pipeline Integration', 'Execution Planner', `Substituted meetingId in ${call.toolName} parameters with actual ID: ${lastToolResult.meetingId}`);
-            }
             addTrace('Tool Security Verification', `RBAC validation: ${call.toolName}`, `Checking required permissions...`);
-            const tool = getToolByName(call.toolName);
+            const tool = getToolFromCatalog(call.toolName);
             if (!tool) {
                 addTrace('Registry Resolution Failure', call.toolName, `Tool not found in catalog registry.`, 'error');
                 toolOutputs.push({ toolName: call.toolName, error: 'Tool not found in catalog registry.' });
@@ -275,12 +344,13 @@ app.post('/api/chat', async (req, res) => {
                 continue;
             }
             // Check Role Permissions (RBAC)
-            const isAuthorized = tool.requiredPermissions.includes(role);
+            const requiredPermissions = getToolRequiredPermissions(tool);
+            const isAuthorized = requiredPermissions.includes(role);
             if (!isAuthorized) {
-                addTrace('Security Access Denied', `RBAC Enforcer`, `Role "${role}" is unauthorized to run "${tool.title}". Requires: ${tool.requiredPermissions.join(', ')}`, 'error');
+                addTrace('Security Access Denied', `RBAC Enforcer`, `Role "${role}" is unauthorized to run "${tool.name}". Requires: ${requiredPermissions.join(', ')}`, 'error');
                 toolOutputs.push({
                     toolName: call.toolName,
-                    error: `Access Denied: Role "${role}" lacks permissions to use this tool (${tool.title}).`
+                    error: `Access Denied: Role "${role}" lacks permissions to use this tool (${tool.name}).`
                 });
                 stopPlanning = true;
                 continue;
@@ -291,16 +361,11 @@ app.post('/api/chat', async (req, res) => {
             const executionDelay = Math.max(100, simulatedLatency * 0.6);
             await sleep(executionDelay);
             try {
-                const result = tool.mockHandler(call.parameters, {
-                    userRole: role,
-                    userId,
-                    userName,
-                    db: dbHelper
-                });
+                const result = executeMockTool(tool, call.parameters);
                 lastToolResult = result;
                 toolOutputs.push({
                     toolName: call.toolName,
-                    title: tool.title,
+                    title: tool.name,
                     status: 'success',
                     data: result
                 });
@@ -310,7 +375,7 @@ app.post('/api/chat', async (req, res) => {
                 addTrace('Tool Execution Failed', call.toolName, `Exception: ${execError.message}`, 'error');
                 toolOutputs.push({
                     toolName: call.toolName,
-                    title: tool.title,
+                    title: tool.name,
                     status: 'failed',
                     error: execError.message
                 });
@@ -318,7 +383,7 @@ app.post('/api/chat', async (req, res) => {
             }
         }
         // 6. Response Synthesis
-        addTrace('Synthesizing Response', 'Response Generator', 'Formulating conversational message for the employee...');
+        addTrace('Synthesizing Response', 'Response Generator', 'Formulating conversational response...');
         let finalResponse = '';
         const successOutputs = toolOutputs.filter(o => o.status === 'success');
         const failedOutputs = toolOutputs.filter(o => o.error);
@@ -326,94 +391,12 @@ app.post('/api/chat', async (req, res) => {
             finalResponse = `I encountered an issue executing your request: ${failedOutputs[0].error}`;
         }
         else if (successOutputs.length > 0) {
-            // Custom synthesis for common tools
             const first = successOutputs[0];
-            if (first.toolName === 'leave_balance') {
-                finalResponse = `Hi ${userName}, your current leave balance is:\n` +
-                    `• Casual Leave: **${first.data.casual} days**\n` +
-                    `• Sick Leave: **${first.data.sick} days**\n` +
-                    `• Annual Leave: **${first.data.annual} days**\n` +
-                    `• Pending Approval: **${first.data.pendingApproval} days**`;
-            }
-            else if (first.toolName === 'apply_leave') {
-                finalResponse = `Success! **${first.data.message}**\n` +
-                    `• Leave Reference: \`${first.data.requestId}\`\n` +
-                    `• Date Span: ${first.data.startDate} to ${first.data.endDate}\n` +
-                    `• Remaining Balance: ${first.data.remainingBalance} days`;
-            }
-            else if (first.toolName === 'cancel_leave') {
-                finalResponse = `Successfully cancelled leave request \`${first.data.requestId}\`. Restored ${first.data.restoredDays} days of ${first.data.restoredType} leave back to your balance.`;
-            }
-            else if (first.toolName === 'reset_vpn_password') {
-                finalResponse = `Your VPN password reset request has been processed successfully. \n` +
-                    `• Username: \`${first.data.username}\`\n` +
-                    `• Temporary Password: \`${first.data.temporaryPassword}\`\n` +
-                    `*Note: This credentials will expire in ${first.data.expiryMinutes} minutes. Please update your password immediately upon login.*`;
-            }
-            else if (first.toolName === 'wifi_guest_access') {
-                finalResponse = `Guest Wi-Fi generated for **${first.data.guestName}**:\n` +
-                    `• SSID: \`${first.data.ssid}\`\n` +
-                    `• Passcode: \`${first.data.passcode}\`\n` +
-                    `• Expiry: ${first.data.expiry}`;
-            }
-            else if (first.toolName === 'download_payslip') {
-                finalResponse = `I've prepared your payslip for **${first.data.period}**.\n` +
-                    `• File Name: \`${first.data.fileName}\`\n` +
-                    `• Net Salary payout: **$${first.data.salaryDetails.netSalary.toLocaleString()}**\n` +
-                    `You can [Download PDF Link](${first.data.downloadUrl}) directly.`;
-            }
-            else if (first.toolName === 'create_it_ticket') {
-                finalResponse = `I have submitted an IT ticket for your issue:\n` +
-                    `• Ticket ID: \`${first.data.ticketId}\`\n` +
-                    `• Category: ${first.data.category}\n` +
-                    `• Status: **${first.data.status}**\n` +
-                    `• SLA Target: ${first.data.slaTargetTime}`;
-            }
-            else if (first.toolName === 'get_ticket_status') {
-                finalResponse = `Here is the status of ticket \`${first.data.ticketId}\`:\n` +
-                    `• Current State: **${first.data.status}**\n` +
-                    `• Priority: ${first.data.priority}\n` +
-                    `• Assigned Engineer: ${first.data.assignedEngineer}\n` +
-                    `• Latest update: "${first.data.history[first.data.history.length - 1].comment}"`;
-            }
-            else if (first.toolName === 'submit_reimbursement') {
-                finalResponse = `Your reimbursement request of **$${first.data.claimAmount}** for ${first.data.category} has been submitted.\n` +
-                    `• Reference ID: \`${first.data.claimId}\`\n` +
-                    `• Status: **${first.data.status}**`;
-            }
-            else if (first.toolName === 'schedule_meeting') {
-                // Check if multi-tool invitation was also executed
-                const inviteTool = successOutputs.find(o => o.toolName === 'send_meeting_invitation');
-                if (inviteTool) {
-                    finalResponse = `Calendar booking complete!\n` +
-                        `• Meeting Room: **${first.data.title}**\n` +
-                        `• Slot: ${first.data.date} | ${first.data.timeRange}\n` +
-                        `• Invite Link: ${first.data.inviteLink}\n` +
-                        `• Invitations Sent: Sent calendar invites to **${inviteTool.data.invitesSent}** participants (${inviteTool.data.recipientsDelivered.join(', ')}).`;
-                }
-                else {
-                    finalResponse = `I've booked your meeting:\n` +
-                        `• Title: "${first.data.title}"\n` +
-                        `• Date/Time: ${first.data.date} at ${first.data.timeRange}\n` +
-                        `• Access Link: [Link](${first.data.inviteLink})`;
-                }
-            }
-            else if (first.toolName === 'book_conference_room') {
-                finalResponse = `Room reserved successfully!\n` +
-                    `• Venue: **${first.data.roomConfirmed}**\n` +
-                    `• Slot: ${first.data.date} from ${first.data.timeSlot}\n` +
-                    `• Reservation Code: \`${first.data.bookingId}\` (Includes: ${first.data.features})`;
-            }
-            else {
-                // Generic fallback synthesis
-                const detailsStr = Object.entries(first.data)
-                    .filter(([key]) => key !== 'message' && typeof first.data[key] !== 'object')
-                    .map(([key, val]) => `• ${key}: **${val}**`)
-                    .join('\n');
-                finalResponse = `I have successfully completed your request using the **${first.title}**.\n` +
-                    (first.data.message ? `*${first.data.message}*\n` : '') +
-                    detailsStr;
-            }
+            const detailsStr = Object.entries(first.data)
+                .filter(([key]) => typeof first.data[key] !== 'object')
+                .map(([key, val]) => `• ${key}: **${val}**`)
+                .join('\n');
+            finalResponse = `I have successfully completed your request using **${first.toolName}**:\n` + detailsStr;
         }
         else {
             finalResponse = "I analyzed your request, but was unable to identify or execute the correct actions.";
@@ -447,13 +430,16 @@ app.post('/api/chat', async (req, res) => {
                 toolCallsCount: successOutputs.length,
                 confidence: routingResult.confidence,
                 routerUsed: methodUsed
-            }
+            },
+            selected_tools: routingResult.selected_tools || [],
+            plan: routingResult.plan || [],
+            clarify: false,
+            clarify_question: null
         });
     }
     catch (error) {
         const durationMs = Date.now() - startTime;
         addTrace('Express Server Critical Error', 'Server Process', `Error: ${error.message}`, 'error');
-        // Log failed transaction
         const logEntry = {
             id: 'LOG-' + Math.floor(Math.random() * 900000 + 100000),
             timestamp: new Date().toISOString(),
@@ -482,6 +468,495 @@ app.post('/api/chat', async (req, res) => {
             }
         });
     }
+});
+// 4. Exec Scored Benchmark Harness (Child Process)
+app.get('/api/benchmark', (req, res) => {
+    const pythonCmd = 'python3 router-testkit/harness/run_benchmark.py';
+    // Cwd relative to server directory (running from root directory workspace)
+    const rootDir = path.resolve(__dirname, '../../');
+    exec(pythonCmd, { cwd: rootDir }, (error, stdout, stderr) => {
+        if (error) {
+            console.error('Benchmark error:', stderr);
+            return res.status(500).json({ error: 'Failed to run python benchmark harness', details: stderr });
+        }
+        try {
+            const output = stdout.toString();
+            const lines = output.split('\n');
+            const result = {
+                catalogSize: 0,
+                fullCost: 0,
+                cases: [],
+                categoryScore: {},
+                summary: {
+                    passed: 0,
+                    total: 0,
+                    accuracy: "0%",
+                    avgTokens: 0,
+                    fullDumpTokens: 0,
+                    tokenSavings: "0%"
+                }
+            };
+            let section = 'header';
+            for (let line of lines) {
+                line = line.trim();
+                if (!line)
+                    continue;
+                if (line.includes('Catalog:')) {
+                    const match = line.match(/Catalog:\s*(\d+)\s*tools\s*\|\s*full-catalog injection\s*~=\s*(\d+)\s*tokens/);
+                    if (match) {
+                        result.catalogSize = parseInt(match[1]);
+                        result.fullCost = parseInt(match[2]);
+                    }
+                    continue;
+                }
+                if (line.startsWith('CASE') && line.includes('CATEGORY')) {
+                    section = 'cases';
+                    continue;
+                }
+                if (line.startsWith('---')) {
+                    continue;
+                }
+                if (line.startsWith('By category:')) {
+                    section = 'categories';
+                    continue;
+                }
+                if (line.startsWith('Summary:')) {
+                    section = 'summary';
+                    continue;
+                }
+                if (section === 'cases') {
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 4) {
+                        result.cases.push({
+                            id: parts[0],
+                            category: parts[1],
+                            result: parts[2],
+                            tokens: parseInt(parts[3])
+                        });
+                    }
+                    continue;
+                }
+                if (section === 'categories') {
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 2) {
+                        result.categoryScore[parts[0]] = parts[1];
+                    }
+                    continue;
+                }
+                if (section === 'summary') {
+                    if (line.includes('Cases passed')) {
+                        const match = line.match(/Cases passed\s*:\s*(\d+)\/(\d+)\s*\(([\d%]+)\)/);
+                        if (match) {
+                            result.summary.passed = parseInt(match[1]);
+                            result.summary.total = parseInt(match[2]);
+                            result.summary.accuracy = match[3];
+                        }
+                    }
+                    else if (line.includes('Avg tokens')) {
+                        const match = line.match(/Avg tokens\s*\(routed\)\s*:\s*([\d.]+)/);
+                        if (match)
+                            result.summary.avgTokens = Math.round(parseFloat(match[1]));
+                    }
+                    else if (line.includes('Tokens (full dump)')) {
+                        const match = line.match(/Tokens\s*\(full dump\)\s*:\s*(\d+)/);
+                        if (match)
+                            result.summary.fullDumpTokens = parseInt(match[1]);
+                    }
+                    else if (line.includes('Token savings')) {
+                        const match = line.match(/Token savings\s*:\s*([\d%]+)/);
+                        if (match)
+                            result.summary.tokenSavings = match[1];
+                    }
+                }
+            }
+            // Load and append original test case details
+            const casesMap = loadTestCaseDetails();
+            for (const c of result.cases) {
+                if (casesMap[c.id]) {
+                    c.query = casesMap[c.id].query;
+                    c.expected = casesMap[c.id].expected;
+                    c.rationale = casesMap[c.id].rationale;
+                }
+            }
+            res.json(result);
+        }
+        catch (e) {
+            res.status(500).json({ error: 'Failed to parse benchmark stdout', details: e.message, raw: stdout });
+        }
+    });
+});
+function loadTestCaseDetails() {
+    const casesMap = {};
+    const testCasesDir = path.resolve(__dirname, '../../router-testkit/test_cases');
+    try {
+        const files = fs.readdirSync(testCasesDir);
+        for (const file of files) {
+            if (file.startsWith('_') || file === 'catalog_mutations.json' || !file.endsWith('.json')) {
+                continue;
+            }
+            const filePath = path.join(testCasesDir, file);
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            if (data && Array.isArray(data.cases)) {
+                for (const c of data.cases) {
+                    casesMap[c.id] = c;
+                }
+            }
+        }
+    }
+    catch (err) {
+        console.error('Failed to load test case details:', err);
+    }
+    return casesMap;
+}
+// 5. Schema Intake Guardrail Validation
+app.post('/api/guardrail/validate', (req, res) => {
+    const { submissionText } = req.body;
+    let submission;
+    try {
+        submission = typeof submissionText === 'string' ? JSON.parse(submissionText) : submissionText;
+    }
+    catch (e) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'MALFORMED_JSON_STRUCTURE',
+            note: 'Submission is not valid JSON (unquoted keys, trailing comma, or single quotes).'
+        });
+    }
+    // Validate required fields
+    const requiredFields = ["id", "name", "cluster", "description", "parameters", "returns"];
+    for (const field of requiredFields) {
+        if (!(field in submission)) {
+            return res.json({
+                verdict: 'reject',
+                reason: 'MISSING_REQUIRED_FIELD',
+                note: `Missing '${field}' field.`
+            });
+        }
+    }
+    // ID Pattern Check
+    const idPattern = /^[a-z_]+\.[a-z0-9_]+$/;
+    if (!idPattern.test(submission.id)) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'BAD_ID_FORMAT',
+            note: "ID contains space or invalid characters. Must be cluster-prefixed (e.g. cluster.tool_name)."
+        });
+    }
+    // Name Pattern Check
+    const namePattern = /^[a-z][a-z0-9_]*$/;
+    if (!namePattern.test(submission.name)) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'BAD_NAME_FORMAT',
+            note: "Name contains space or invalid characters. Must be lowercase snake_case."
+        });
+    }
+    // Description Vague check (min 6 words)
+    const words = (submission.description || '').trim().split(/\s+/).filter(Boolean);
+    if (words.length < 6) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'DESCRIPTION_TOO_VAGUE',
+            note: "Description is under 6 words or semantically empty."
+        });
+    }
+    // Description length (max 500)
+    if ((submission.description || '').length > 500) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'DESCRIPTION_TOO_LONG',
+            note: "Description exceeds maximum length of 500 characters."
+        });
+    }
+    // Max Parameters check (max 12)
+    if (!Array.isArray(submission.parameters) || submission.parameters.length > 12) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'TOO_MANY_PARAMETERS',
+            note: "Parameters exceed maximum allowance of 12."
+        });
+    }
+    // Parameter types check
+    const allowedTypes = ["string", "number", "integer", "boolean", "array", "object"];
+    for (const param of submission.parameters) {
+        if (!param.type || !allowedTypes.includes(param.type)) {
+            return res.json({
+                verdict: 'reject',
+                reason: 'INVALID_PARAM_TYPE',
+                note: `'${param.type}' is not an allowed parameter type (use string, number, integer, boolean, array, object).`
+            });
+        }
+    }
+    // Version Semver Check
+    const versionPattern = /^\d+\.\d+\.\d+$/;
+    if (submission.version && !versionPattern.test(submission.version)) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'BAD_VERSION_FORMAT',
+            note: `version '${submission.version}' is not semver x.y.z.`
+        });
+    }
+    // Duplicate ID Check
+    const activeIds = (testkitCatalog.tools || []).map((t) => t.id);
+    if (activeIds.includes(submission.id)) {
+        return res.json({
+            verdict: 'reject',
+            reason: 'DUPLICATE_ID',
+            note: `ID '${submission.id}' already exists in the live catalog.`
+        });
+    }
+    // Dangling Replaced By Check
+    if (submission.deprecated && submission.replaced_by) {
+        if (!activeIds.includes(submission.replaced_by)) {
+            return res.json({
+                verdict: 'reject',
+                reason: 'DANGLING_REPLACED_BY',
+                note: `replaced_by points to a tool id '${submission.replaced_by}' that does not exist in the catalog.`
+            });
+        }
+    }
+    return res.json({
+        verdict: 'accept',
+        note: "Schema validated successfully and accepted into the registry."
+    });
+});
+const MUTATION_CANDIDATE_TOOLS = [
+    {
+        id: "fin.get_cashflow_statement",
+        name: "get_cashflow_statement",
+        cluster: "finance",
+        description: "Retrieve and fetch the cash flow statement for a given fiscal period, including operating, investing, and financing activities.",
+        version: "1.0.0",
+        deprecated: false,
+        requiredPermissions: ["Manager"],
+        side_effects: "read",
+        parameters: [
+            { name: "period", type: "string", required: true, description: "Fiscal period (e.g. Q1, FY2026)" }
+        ],
+        returns: { type: "object", fields: ["operating_cashflow", "investing_cashflow", "financing_cashflow"] }
+    },
+    {
+        id: "it.scale_kubernetes_cluster",
+        name: "scale_kubernetes_cluster",
+        cluster: "it_devops",
+        description: "Scale kubernetes pods and node count for application clusters to manage workload demand.",
+        version: "1.0.0",
+        deprecated: false,
+        requiredPermissions: ["IT_Admin"],
+        side_effects: "write",
+        parameters: [
+            { name: "replica_count", type: "integer", required: true, description: "Number of replicas to target" }
+        ],
+        returns: { type: "object", fields: ["status", "current_replicas"] }
+    },
+    {
+        id: "mkt.track_campaign_roi",
+        name: "track_campaign_roi",
+        cluster: "marketing",
+        description: "Track and analyze return on investment (ROI) metrics for marketing campaigns based on budget and conversion logs.",
+        version: "1.0.0",
+        deprecated: false,
+        requiredPermissions: ["Employee"],
+        side_effects: "read",
+        parameters: [
+            { name: "campaign_id", type: "string", required: true, description: "Unique identifier of the marketing campaign" }
+        ],
+        returns: { type: "object", fields: ["roi_percentage", "net_revenue", "cost"] }
+    },
+    {
+        id: "hr.check_benefits_eligibility",
+        name: "check_benefits_eligibility",
+        cluster: "hr",
+        description: "Check employee eligibility status for company health, dental, and retirement benefits packages.",
+        version: "1.0.0",
+        deprecated: false,
+        requiredPermissions: ["Employee"],
+        side_effects: "read",
+        parameters: [
+            { name: "employee_id", type: "string", required: true, description: "Employee ID to look up" }
+        ],
+        returns: { type: "object", fields: ["eligible", "benefits_tier"] }
+    },
+    {
+        id: "legal.generate_nda",
+        name: "generate_nda",
+        cluster: "legal",
+        description: "Generate a standard non-disclosure agreement document template for employee or partner onboarding.",
+        version: "1.0.0",
+        deprecated: false,
+        requiredPermissions: ["Manager"],
+        side_effects: "write",
+        parameters: [
+            { name: "signee_name", type: "string", required: true, description: "Name of the signee" }
+        ],
+        returns: { type: "object", fields: ["document_id", "status"] }
+    }
+];
+// Real-time Catalog Mutations
+app.post('/api/mutations/add', (req, res) => {
+    const { toolId, toolObj } = req.body;
+    const targetTool = toolObj || MUTATION_CANDIDATE_TOOLS.find(t => t.id === toolId);
+    if (!targetTool) {
+        return res.status(404).json({ error: 'Tool candidate definition not found' });
+    }
+    if (testkitCatalog.tools.some((t) => t.id === toolId)) {
+        return res.json({ success: true, message: 'Tool already in catalog', tools: testkitCatalog.tools });
+    }
+    testkitCatalog.tools.push(targetTool);
+    res.json({ success: true, message: `Successfully added ${toolId} to catalog`, tools: testkitCatalog.tools });
+});
+app.post('/api/mutations/remove', (req, res) => {
+    const { toolId } = req.body;
+    testkitCatalog.tools = testkitCatalog.tools.filter((t) => t.id !== toolId);
+    res.json({ success: true, message: `Successfully removed ${toolId} from catalog`, tools: testkitCatalog.tools });
+});
+app.post('/api/mutations/reset', (req, res) => {
+    try {
+        const catalogPath = path.resolve(__dirname, '../../router-testkit/harness/catalog.json');
+        testkitCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+        res.json({ success: true, message: 'Catalog reset to default', tools: testkitCatalog.tools });
+    }
+    catch (err) {
+        res.status(500).json({ error: 'Failed to reset catalog' });
+    }
+});
+app.post('/api/mutations/toggle-deprecation', (req, res) => {
+    const { toolId, deprecated, replacedBy } = req.body;
+    const tool = testkitCatalog.tools.find((t) => t.id === toolId);
+    if (tool) {
+        tool.deprecated = deprecated;
+        tool.replaced_by = replacedBy || null;
+        res.json({ success: true, message: `Successfully updated ${toolId}`, tools: testkitCatalog.tools });
+    }
+    else {
+        res.status(404).json({ error: 'Tool not found' });
+    }
+});
+app.post('/api/mutations/inject-synthetic', (req, res) => {
+    const { count } = req.body;
+    testkitCatalog.tools = testkitCatalog.tools.filter((t) => !t.id.startsWith('syn.'));
+    if (count > 0) {
+        for (let i = 1; i <= count; i++) {
+            testkitCatalog.tools.push({
+                id: `syn.tool_${i}`,
+                name: `synthetic_tool_${i}`,
+                cluster: testkitCatalog.clusters[i % testkitCatalog.clusters.length] || 'general',
+                description: `Synthetic tool number ${i} for scale load testing.`,
+                version: "1.0.0",
+                deprecated: false,
+                parameters: [],
+                returns: { type: "object", fields: ["status"] }
+            });
+        }
+    }
+    res.json({ success: true, message: `Successfully injected ${count} synthetic tools`, tools: testkitCatalog.tools });
+});
+// 6. Catalog Mutations Simulation Sandbox
+app.post('/api/mutations/simulate', (req, res) => {
+    const { scenarioId } = req.body;
+    const mutationsPath = path.resolve(__dirname, '../../router-testkit/test_cases/catalog_mutations.json');
+    const mutationsFile = JSON.parse(fs.readFileSync(mutationsPath, 'utf8'));
+    const scenario = mutationsFile.scenarios.find((s) => s.id === scenarioId);
+    if (!scenario) {
+        return res.status(404).json({ error: 'Scenario not found' });
+    }
+    const clonedCatalog = JSON.parse(JSON.stringify(testkitCatalog));
+    const delta = scenario.delta || {};
+    let logs = [`Starting simulation for ${scenarioId} (${scenario.type})`];
+    if (delta.add) {
+        for (const t of delta.add) {
+            clonedCatalog.tools.push(t);
+            logs.push(`Added tool to catalog: ${t.id} (${t.name})`);
+        }
+    }
+    if (delta.remove) {
+        for (const rid of delta.remove) {
+            clonedCatalog.tools = clonedCatalog.tools.filter((t) => t.id !== rid);
+            logs.push(`Removed tool from catalog: ${rid}`);
+        }
+    }
+    if (delta.add_synthetic) {
+        const count = delta.add_synthetic.count || 40;
+        logs.push(`Scaling catalog stress: adding ${count} synthetic tools...`);
+        for (let i = 1; i <= count; i++) {
+            const synId = `syn.tool_${i}`;
+            clonedCatalog.tools.push({
+                id: synId,
+                name: `synthetic_tool_${i}`,
+                cluster: clonedCatalog.clusters[i % clonedCatalog.clusters.length],
+                description: `Synthetic placeholder tool number ${i} for scale stress testing.`,
+                version: "1.0.0",
+                deprecated: false,
+                parameters: [],
+                returns: { type: "object", fields: ["status"] }
+            });
+        }
+        logs.push(`Scaled catalog: tool count is now ${clonedCatalog.tools.length}`);
+    }
+    const router = new TSIntelligentRouter(clonedCatalog);
+    const probeResults = [];
+    let passed = true;
+    if (scenario.probe_query) {
+        const probeQuery = scenario.probe_query;
+        logs.push(`Executing probe query: "${probeQuery}"`);
+        const routeRes = router.route(probeQuery);
+        const expectedIds = scenario.expected_after.tools_required || [];
+        const actualIds = routeRes.selected_tools || [];
+        let queryPass = true;
+        for (const expId of expectedIds) {
+            if (!actualIds.includes(expId))
+                queryPass = false;
+        }
+        if (scenario.expected_after.behavior === 'graceful_degradation') {
+            if (actualIds.includes('bi.create_visualization') || routeRes.clarify) {
+                queryPass = true;
+            }
+            else {
+                queryPass = false;
+            }
+        }
+        if (queryPass) {
+            logs.push(`✅ Probe Query PASSED invariant. Routed to: ${JSON.stringify(actualIds)}`);
+        }
+        else {
+            logs.push(`❌ Probe Query FAILED invariant. Routed to: ${JSON.stringify(actualIds)}. Expected: ${JSON.stringify(expectedIds)}`);
+            passed = false;
+        }
+        probeResults.push({
+            query: probeQuery,
+            actual: actualIds,
+            expected: expectedIds,
+            passed: queryPass
+        });
+    }
+    if (scenario.probes) {
+        for (const p of scenario.probes) {
+            logs.push(`Executing version probe query: "${p.query}"`);
+            const routeRes = router.route(p.query);
+            const expectedIds = p.expected_tools || [];
+            const actualIds = routeRes.selected_tools || [];
+            const queryPass = expectedIds.every((id) => actualIds.includes(id)) && actualIds.length === expectedIds.length;
+            if (queryPass) {
+                logs.push(`✅ Version Probe PASSED. Routed to: ${JSON.stringify(actualIds)}`);
+            }
+            else {
+                logs.push(`❌ Version Probe FAILED. Routed to: ${JSON.stringify(actualIds)}. Expected: ${JSON.stringify(expectedIds)}`);
+                passed = false;
+            }
+            probeResults.push({
+                query: p.query,
+                actual: actualIds,
+                expected: expectedIds,
+                passed: queryPass
+            });
+        }
+    }
+    res.json({
+        scenarioId,
+        passed,
+        logs,
+        probeResults
+    });
 });
 // Fallback all non-API GET requests to frontend's index.html
 app.get('*', (req, res, next) => {

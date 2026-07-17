@@ -1,0 +1,43 @@
+{
+  "category_file": "05_clarification",
+  "cases": [
+    {
+      "id": "TC-501",
+      "category": "clarification",
+      "query": "Send it to the team.",
+      "context": {},
+      "expected": {
+        "tools_required": [],
+        "order": null,
+        "forbidden": [
+          "comm.send_email",
+          "comm.send_slack_message",
+          "comm.send_sms",
+          "comm.post_teams_message",
+          "mkt.send_campaign"
+        ],
+        "should_clarify": true,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "No content, no channel, no recipient resolution. Any concrete send is a hallucinated action; the router should request clarification."
+    },
+    {
+      "id": "TC-502",
+      "category": "clarification",
+      "query": "Cancel the meeting.",
+      "context": {},
+      "expected": {
+        "tools_required": [],
+        "order": null,
+        "forbidden": [
+          "cal.cancel_event"
+        ],
+        "should_clarify": true,
+        "allow_any_of": [],
+        "widen_after_fail": null
+      },
+      "rationale": "Which meeting? No event id / disambiguator. Destructive action must not fire on an underspecified reference."
+    }
+  ]
+}
