@@ -127,8 +127,42 @@ export class TSIntelligentRouter {
         return null;
     }
     route(query) {
-        const qLower = query.toLowerCase();
+        const qLower = query.toLowerCase().trim();
         const traceLogs = [];
+        // Conversational / Generic Assistant Responses
+        const greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "greetings", "yo", "hello assistant"];
+        const capabilities = ["help", "what can you do", "capabilities", "available tools", "features", "how do you work", "help me"];
+        const identity = ["who are you", "what is your name", "who made you", "identity"];
+        const gratitude = ["thank you", "thanks", "thanks!", "thank you!", "awesome", "perfect", "great"];
+        let convResponse = null;
+        if (greetings.includes(qLower) || greetings.some(g => qLower === g + "!")) {
+            convResponse = "Hello! I am your Intelligent Enterprise Assistant. How can I help you today? I have access to HR, Finance, IT/DevOps, and Communication tools.";
+        }
+        else if (capabilities.some(c => qLower.includes(c))) {
+            convResponse = "I can assist with a variety of enterprise tasks, including: checking leave balances or submitting expenses (HR), retrieving revenue reports or creating invoices (Finance), restarting servers or opening incident tickets (IT/DevOps), and sending emails or posting Slack/Teams messages (Communication). Just type your query and I will route it to the correct tools!";
+        }
+        else if (identity.some(i => qLower.includes(i))) {
+            convResponse = "I am the Intelligent Enterprise Assistant, a natural-language routing gateway designed to orchestrate complex actions across enterprise tool catalogs securely.";
+        }
+        else if (gratitude.includes(qLower) || gratitude.some(g => qLower === g + "!")) {
+            convResponse = "You're welcome! Let me know if there is anything else I can do for you.";
+        }
+        if (convResponse) {
+            traceLogs.push(`Route Intent Detection: Conversational query detected. Bypassing tool registry.`);
+            return {
+                selected_tools: [],
+                plan: [],
+                clarify: false,
+                clarify_question: null,
+                department: "General",
+                confidence: 1.0,
+                needsClarification: false,
+                clarificationPrompt: "",
+                toolCalls: [],
+                traceLogs,
+                conversationalResponse: convResponse
+            };
+        }
         // 1. Signature Matching
         for (const sig of SIGNATURES) {
             const kwsMatch = sig.keywords.every(kw => qLower.includes(kw));
@@ -223,7 +257,7 @@ export class TSIntelligentRouter {
             };
         }
         // 2. Fallback Router (Token Overlap Search)
-        const STOPWORDS = new Set(["what", "is", "my", "for", "to", "in", "with", "the", "a", "an", "of", "it", "on", "at", "by", "that", "this", "from", "you", "me", "i", "we", "us", "they", "them", "our", "your", "day", "days", "please", "can", "could", "should", "would", "how", "why", "where", "when", "who", "which", "are", "do", "does", "did", "have", "has", "had", "will", "shall", "be", "been", "was", "were", "go", "get", "take", "make", "find", "search", "lookup"]);
+        const STOPWORDS = new Set(["what", "is", "am", "being", "my", "for", "to", "in", "with", "the", "a", "an", "of", "it", "on", "at", "by", "that", "this", "from", "you", "me", "i", "we", "us", "they", "them", "our", "your", "day", "days", "please", "can", "could", "should", "would", "how", "why", "where", "when", "who", "which", "are", "do", "does", "did", "have", "has", "had", "will", "shall", "be", "been", "was", "were", "go", "get", "take", "make", "find", "search", "lookup"]);
         const tokens = (qLower.match(/[a-z0-9]+/g) || []).filter(tok => !STOPWORDS.has(tok));
         if (tokens.length === 0) {
             return {
@@ -241,12 +275,15 @@ export class TSIntelligentRouter {
         }
         // Stage 1: Cluster Isolation & Focus
         const candidateClusters = new Set();
+        const rawTokensSetForCluster = new Set((qLower.match(/[a-z0-9]+/g) || []));
         for (const t of this.tools) {
             const cluster = t.cluster || '';
             if (cluster) {
-                const isClusterMatch = qLower.includes(cluster.toLowerCase()) ||
-                    tokens.some(tok => t.name.toLowerCase().includes(tok) || t.description.toLowerCase().includes(tok));
-                if (isClusterMatch) {
+                const isClusterNameMatch = rawTokensSetForCluster.has(cluster.toLowerCase()) ||
+                    cluster.toLowerCase().split(/[_\.]/).some((sub) => rawTokensSetForCluster.has(sub));
+                const tTokensSet = new Set(((t.name + " " + (t.description || "")).toLowerCase().match(/[a-z0-9]+/g) || []));
+                const isContentMatch = tokens.some(tok => tTokensSet.has(tok));
+                if (isClusterNameMatch || isContentMatch) {
                     candidateClusters.add(cluster);
                 }
             }
@@ -257,6 +294,7 @@ export class TSIntelligentRouter {
         else {
             traceLogs.push(`Stage 1: No primary clusters isolated. Performing global scope search.`);
         }
+        const rawTokensSet = new Set((qLower.match(/[a-z0-9]+/g) || []));
         const scoredTools = [];
         for (const t of this.tools) {
             const tText = `${t.name} ${t.description} ${(t.tags || []).join(' ')}`.toLowerCase();
@@ -280,13 +318,20 @@ export class TSIntelligentRouter {
             // Boost tag matches
             if (t.tags) {
                 for (const tag of t.tags) {
-                    if (qLower.includes(tag.toLowerCase()))
+                    if (rawTokensSet.has(tag.toLowerCase()))
                         score += 2;
                 }
             }
             // Boost name matches
-            if (qLower.includes(t.name.toLowerCase())) {
+            const cleanName = t.name.toLowerCase();
+            if (rawTokensSet.has(cleanName)) {
                 score += 4;
+            }
+            else {
+                const boundaryRegex = new RegExp('\\b' + cleanName.replace(/[_\.]/g, '[_\\s\\.]') + '\\b');
+                if (boundaryRegex.test(qLower)) {
+                    score += 4;
+                }
             }
             // Cluster focus affinity boost
             if (t.cluster && candidateClusters.has(t.cluster)) {
